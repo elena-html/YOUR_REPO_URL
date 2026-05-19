@@ -16,7 +16,7 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     await new Promise(r => setTimeout(r, 600));
-    const result = login(email, password);
+    const result = await login(email, password);
     setLoading(false);
     if (!result.success) setError(result.error);
   };
@@ -44,8 +44,8 @@ export default function LoginPage() {
 
       <div className="login-card">
         <div className="login-header">
-          <div className="login-logo">
-            <GraduationCap size={40} color="white" />
+          <div className="login-logo" style={{ background: 'transparent', width: '120px', height: '120px' }}>
+            <img src="/logo-univ.png" alt="Logo Univ" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
           <h1>Portail d'Absence</h1>
           <p>Université de Bordj Bou Arréridj</p>

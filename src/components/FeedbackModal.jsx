@@ -11,10 +11,13 @@ export default function FeedbackModal({ user, onClose, onSubmit }) {
     e.preventDefault();
     if (!message.trim()) return;
     setSubmitting(true);
-    await new Promise(r => setTimeout(r, 600));
-    Store.submitBugReport(user.user_id, message, type);
-    setSubmitting(false);
-    onSubmit();
+    try {
+      await Store.submitBugReport(message, type);
+      setSubmitting(false);
+      onSubmit();
+    } catch (err) {
+      setSubmitting(false);
+    }
   };
 
   return (

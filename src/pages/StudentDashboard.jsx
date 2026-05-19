@@ -10,10 +10,21 @@ import NotificationPanel from '../components/NotificationPanel';
 import FeedbackModal from '../components/FeedbackModal';
 
 export default function StudentDashboard() {
-  const { currentUser, currentStudent, logout } = useAuth();
+  const { currentUser, logout } = useAuth();
   const [absences, setAbsences] = useState([]);
   const [justifications, setJustifications] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  
+  const LOCAL_STORAGE_KEY = `notifs_read_${currentUser?.user_id}`;
+  const [readNotifIds, setReadNotifIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const [bugReports, setBugReports] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -21,16 +32,66 @@ export default function StudentDashboard() {
   const [expandedAbsence, setExpandedAbsence] = useState(null);
   const [toast, setToast] = useState(null);
   const [activeView, setActiveView] = useState('absences'); // 'absences' | 'bugs'
+  const [visitedViews, setVisitedViews] = useState([]);
 
-  const refresh = () => {
-    if (!currentStudent) return;
-    setAbsences(Store.getAbsencesByStudent(currentStudent.student_id));
-    setJustifications(Store.getJustifications());
-    setNotifications(Store.getNotifications(currentUser.user_id));
-    setBugReports(Store.getBugReportsByUser(currentUser.user_id));
+  const refresh = async () => {
+    if (!currentUser) return;
+    try {
+      const absData = await Store.getAbsences();
+      setAbsences(absData);
+
+      const jusData = await Store.getJustifications();
+      setJustifications(jusData);
+
+      const bugsData = await Store.getBugReports();
+      setBugReports(bugsData);
+
+      // Generate notifications
+      const notifs = [];
+      
+      const myAbs = absData.filter(a => a.is_absent);
+      myAbs.forEach(a => {
+        const dateStr = new Date(a.absence_date).toLocaleDateString('fr-DZ');
+        notifs.push({
+          id: `abs-${a.absence_id}`,
+          type: 'warning',
+          message: `Nouvelle absence enregistrée pour le module ${a.module_code} le ${dateStr}.`,
+          created_at: a.createdAt || a.absence_date,
+          read: false
+        });
+      });
+
+      jusData.forEach(j => {
+        if (j.status !== 'pending') {
+          notifs.push({
+            id: `jus-${j.justification_id}-${j.status}`,
+            type: j.status === 'approved' ? 'success' : 'error',
+            message: `Votre justification a été ${j.status === 'approved' ? 'acceptée' : 'refusée'}.`,
+            created_at: j.updatedAt || j.submitted_at,
+            read: false
+          });
+        }
+      });
+
+      notifs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      const currentReadIds = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+      notifs.forEach(n => {
+        if (currentReadIds.includes(n.id)) {
+          n.read = true;
+        }
+      });
+
+      setNotifications(notifs);
+
+    } catch (err) {
+      console.error('Refresh error:', err);
+    }
   };
 
-  useEffect(() => { refresh(); }, [currentStudent]);
+  useEffect(() => {
+    if (currentUser) refresh();
+  }, [currentUser]);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -69,8 +130,12 @@ export default function StudentDashboard() {
 
   const openNotifications = () => {
     setShowNotifications(true);
-    Store.markNotificationsRead(currentUser.user_id);
-    setNotifications(Store.getNotifications(currentUser.user_id));
+    
+    // Mark all as read
+    const allIds = notifications.map(n => n.id);
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(allIds));
+    setReadNotifIds(allIds);
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
   return (
@@ -86,7 +151,7 @@ export default function StudentDashboard() {
       {/* Header */}
       <header className="dash-header">
         <div className="dash-header-left">
-          <GraduationCap size={28} className="logo-icon" />
+          <img src="/logo-univ.png" alt="Logo Univ" className="logo-icon" style={{ height: '75px' }} />
           <div>
             <h2>Portail Étudiant</h2>
             <span className="dash-subtitle">Université de Bordj Bou Arréridj</span>
@@ -104,7 +169,7 @@ export default function StudentDashboard() {
             <span className="user-avatar">{currentUser?.full_name?.charAt(0)}</span>
             <div>
               <span className="user-name">{currentUser?.full_name}</span>
-              <span className="user-mat">Mat: {currentStudent?.matricule}</span>
+              <span className="user-mat">Mat: {currentUser?.matricule}</span>
             </div>
           </div>
           <button className="btn-logout" onClick={logout}>
@@ -115,10 +180,23 @@ export default function StudentDashboard() {
 
       <main className="dash-main">
         {/* Student Info Bar */}
-        <div className="student-info-bar" style={{ display: 'flex', gap: '20px', marginBottom: '25px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          <div className="info-chip" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><BookOpen size={14} />{currentStudent?.specialty}</div>
-          <div className="info-chip" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} />Année {currentStudent?.year} • Semestre {currentStudent?.semester}</div>
-          <div className="info-chip" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><GraduationCap size={14} />Groupe {currentStudent?.group_id}</div>
+        <div className="student-info-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', marginBottom: '25px', fontSize: '0.9rem' }}>
+          <div className="info-chip">
+            <BookOpen size={16} />
+            <span>Spécialité <strong>{currentUser?.specialty}</strong></span>
+          </div>
+          <div className="info-chip">
+            <Calendar size={16} />
+            <span>Année <strong>{currentUser?.year}</strong></span>
+          </div>
+          <div className="info-chip">
+            <Clock size={16} />
+            <span>Semestre <strong>{currentUser?.semester}</strong></span>
+          </div>
+          <div className="info-chip">
+            <GraduationCap size={16} />
+            <span>Groupe <strong>{currentUser?.group_id}</strong></span>
+          </div>
         </div>
 
         {/* Stats */}
@@ -143,13 +221,22 @@ export default function StudentDashboard() {
 
         {/* View Switcher */}
         <div className="filter-tabs">
-          <button 
+          <button
             className={`filter-tab ${activeView === 'absences' ? 'active' : ''}`}
-            onClick={() => setActiveView('absences')}
+            style={{ position: 'relative' }}
+            onClick={() => {
+              setActiveView('absences');
+              if (!visitedViews.includes('absences')) {
+                setVisitedViews([...visitedViews, 'absences']);
+              }
+            }}
           >
             <FileText size={16} /> Mes Absences
+            {unreadCount > 0 && !visitedViews.includes('absences') && activeView !== 'absences' && (
+              <span className="badge-count" style={{ position: 'absolute', top: '-5px', right: '-5px', background: 'var(--error)', color: 'white', fontSize: '10px', padding: '2px 6px', borderRadius: '10px' }}>{unreadCount}</span>
+            )}
           </button>
-          <button 
+          <button
             className={`filter-tab ${activeView === 'bugs' ? 'active' : ''}`}
             onClick={() => setActiveView('bugs')}
           >
@@ -216,7 +303,7 @@ export default function StudentDashboard() {
                                 <span className="upload-preview-name">{jus.file_name}</span>
                                 <span className="upload-preview-size">{jus.reason_type} • Soumis le {new Date(jus.submitted_at).toLocaleDateString('fr-DZ')}</span>
                               </div>
-                              <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem' }} onClick={(e) => { e.stopPropagation(); window.alert("Visualisation du PDF: " + jus.file_name); }}>
+                              <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem' }} onClick={(e) => { e.stopPropagation(); window.open(`http://localhost:5000/uploads/${jus.file_name}`, '_blank'); }}>
                                 <ExternalLink size={14} /> Voir le fichier
                               </button>
                             </div>
@@ -267,12 +354,12 @@ export default function StudentDashboard() {
             ) : (
               <div className="feedback-list">
                 {bugReports.map(bug => (
-                  <div key={bug.id} className="feedback-card">
+                  <div key={bug._id} className="feedback-card">
                     <div className="feedback-header">
                       <span className="badge" style={{ background: bug.type === 'bug' ? '#fee2e2' : '#f0fdfa', color: bug.type === 'bug' ? '#991b1b' : '#166534' }}>
                         {bug.type === 'bug' ? 'Problème Technique' : 'Suggestion'}
                       </span>
-                      <span>{new Date(bug.submitted_at).toLocaleString('fr-DZ')}</span>
+                      <span>{new Date(bug.createdAt).toLocaleString('fr-DZ')}</span>
                     </div>
                     <div className="feedback-body">{bug.message}</div>
                     <div className="feedback-footer" style={{ marginTop: '10px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
@@ -290,10 +377,11 @@ export default function StudentDashboard() {
       {justifyModal && (
         <JustificationModal
           absence={justifyModal}
-          student={currentStudent}
+          student={currentUser}
           existingJus={getJusForAbsence(justifyModal.absence_id)}
           onClose={() => { setJustifyModal(null); refresh(); }}
           onSubmit={(msg) => { showToast(msg); setJustifyModal(null); refresh(); }}
+          showToast={showToast}
         />
       )}
 
@@ -318,7 +406,7 @@ export default function StudentDashboard() {
 }
 
 // ─── Justification Modal ────────────────────────────────────────────────────────
-function JustificationModal({ absence, student, existingJus, onClose, onSubmit }) {
+function JustificationModal({ absence, student, existingJus, onClose, onSubmit, showToast }) {
   const [reasonType, setReasonType] = useState(existingJus?.reason_type || '');
   const [file, setFile] = useState(null);
   const [fileError, setFileError] = useState('');
@@ -329,8 +417,9 @@ function JustificationModal({ absence, student, existingJus, onClose, onSubmit }
   const handleFileChange = (e) => {
     const f = e.target.files[0];
     if (!f) return;
-    if (f.type !== 'application/pdf') {
-      setFileError('Uniquement les fichiers PDF sont acceptés.');
+    const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
+    if (!allowedTypes.includes(f.type)) {
+      setFileError('Uniquement les fichiers PDF, PNG et JPG sont acceptés.');
       setFile(null);
       return;
     }
@@ -346,19 +435,21 @@ function JustificationModal({ absence, student, existingJus, onClose, onSubmit }
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!reasonType) return;
-    if (!file && !existingJus) { setFileError('Veuillez joindre votre justificatif (PDF).'); return; }
-    
+    if (!file && !existingJus) { setFileError('Veuillez joindre votre justificatif (PDF, PNG, JPG).'); return; }
+
     setSubmitting(true);
-    await new Promise(r => setTimeout(r, 1200));
-    Store.submitJustification(
-      absence.absence_id, 
-      student.student_id, 
-      file ? file.name : existingJus.file_name, 
-      'PDF', 
-      reasonType
-    );
-    setSubmitting(false);
-    onSubmit('Justification transmise à l\'administration.');
+    try {
+      await Store.submitJustification(
+        absence.absence_id,
+        reasonType,
+        file || null
+      );
+      onSubmit('Justification transmise.');
+    } catch (err) {
+      showToast('Erreur lors de l\'envoi du fichier.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -379,6 +470,7 @@ function JustificationModal({ absence, student, existingJus, onClose, onSubmit }
               <label>Motif de l'absence</label>
               <select className="filter-select" style={{ backgroundImage: 'none' }} value={reasonType} onChange={e => setReasonType(e.target.value)} required>
                 <option value="">-- Choisir un motif --</option>
+                <option value="Justification médicale">Justification médicale</option>
                 <option value="Raison Académique">Raison Académique</option>
                 <option value="Circonstance Familiale">Circonstance Familiale</option>
                 <option value="Autre justificatif">Autre justificatif</option>
@@ -389,7 +481,7 @@ function JustificationModal({ absence, student, existingJus, onClose, onSubmit }
             </div>
 
             <div className="form-group">
-              <label>Document justificatif (PDF)</label>
+              <label>Document justificatif (PDF, PNG, JPG)</label>
               <div className="file-drop-area" onClick={() => document.getElementById('jus-file').click()}>
                 <Upload size={32} />
                 <div style={{ marginTop: '10px' }}>
@@ -402,11 +494,11 @@ function JustificationModal({ absence, student, existingJus, onClose, onSubmit }
                       Fichier actuel: {existingJus.file_name}
                     </div>
                   ) : (
-                    "Cliquez pour charger le PDF"
+                    "Cliquez pour charger le fichier (PDF, PNG, JPG)"
                   )}
                 </div>
               </div>
-              <input id="jus-file" type="file" accept=".pdf" onChange={handleFileChange} style={{ display: 'none' }} />
+              <input id="jus-file" type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={handleFileChange} style={{ display: 'none' }} />
               {fileError && <div style={{ color: 'var(--error)', fontSize: '0.8rem', marginTop: '5px' }}>{fileError}</div>}
             </div>
 

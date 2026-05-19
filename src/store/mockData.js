@@ -1,24 +1,6 @@
-// ─── MOCK DATA STORE ───────────────────────────────────────────────────────────
-// Simulates backend data for the Student Exam Absence Management System
+import api from './api';
 
-export const USERS = [
-  { user_id: 'ADM001', email: 'admin@univ-bba.dz', password: 'admin123', role: 'Administrator', full_name: 'Responsable Administratif' },
-  { user_id: 'STU001', email: '221831001@univ-bba.dz', password: 'pass123', role: 'Student', full_name: 'Ahmed Benali', matricule: '221831001' },
-  { user_id: 'STU002', email: '221831002@univ-bba.dz', password: 'pass123', role: 'Student', full_name: 'Sara Meddour', matricule: '221831002' },
-  { user_id: 'STU003', email: '221831003@univ-bba.dz', password: 'pass123', role: 'Student', full_name: 'Youcef Khaldi', matricule: '221831003' },
-  { user_id: 'STU004', email: '221831004@univ-bba.dz', password: 'pass123', role: 'Student', full_name: 'Imane Zerrouk', matricule: '221831004' },
-  { user_id: 'STU005', email: '221831005@univ-bba.dz', password: 'pass123', role: 'Student', full_name: 'Karim Bouzidi', matricule: '221831005' },
-];
-
-export const STUDENTS = [
-  { student_id: 'S001', user_id: 'STU001', full_name: 'Ahmed Benali', specialty: 'Informatique', year: '2', semester: '3', group_id: 'G1', matricule: '221831001' },
-  { student_id: 'S002', user_id: 'STU002', full_name: 'Sara Meddour', specialty: 'Informatique', year: '2', semester: '3', group_id: 'G1', matricule: '221831002' },
-  { student_id: 'S003', user_id: 'STU003', full_name: 'Youcef Khaldi', specialty: 'Informatique', year: '2', semester: '3', group_id: 'G2', matricule: '221831003' },
-  { student_id: 'S004', user_id: 'STU004', full_name: 'Imane Zerrouk', specialty: 'Informatique', year: '1', semester: '1', group_id: 'G1', matricule: '221831004' },
-  { student_id: 'S005', user_id: 'STU005', full_name: 'Karim Bouzidi', specialty: 'Intelligence Artificielle', year: '3', semester: '5', group_id: 'G1', matricule: '221831005' },
-  { student_id: 'S006', user_id: 'STU006', full_name: 'Leila Amrani', specialty: 'Sécurité Informatique', year: '3', semester: '5', group_id: 'G2', matricule: '221831006' },
-];
-
+// ─── STATIC CURRICULUM DATA (Kept as is) ──────────────────────────────────────
 export const MODULES = [
   // 1ère Année Ingénieur - S1
   { module_code: 'ALG1', module_name: 'Algebra 1', year: '1', semester: '1', specialty: 'Informatique' },
@@ -91,178 +73,82 @@ export const YEARS = ['1', '2', '3'];
 export const SEMESTERS = ['1', '2', '3', '4', '5', '6'];
 export const GROUPS = ['G1', 'G2', 'G3', 'G4'];
 
-// ─── MUTABLE STORE ─────────────────────────────────────────────────────────────
-const load = (key, def) => {
-  const saved = localStorage.getItem(key);
-  return saved ? JSON.parse(saved) : def;
-};
+// Mock Students for UI lists (until you implement Student API)
+export const STUDENTS = [
+  { student_id: 'S001', full_name: 'Ahmed Benali', specialty: 'Informatique', year: '2', semester: '3', group_id: 'G1', matricule: '221831001' },
+  { student_id: 'S002', full_name: 'Sara Meddour', specialty: 'Informatique', year: '2', semester: '3', group_id: 'G1', matricule: '221831002' },
+  { student_id: 'S003', full_name: 'Youcef Khaldi', specialty: 'Informatique', year: '2', semester: '3', group_id: 'G2', matricule: '221831003' },
+  { student_id: 'S004', full_name: 'Imane Zerrouk', specialty: 'Informatique', year: '1', semester: '1', group_id: 'G1', matricule: '221831004' },
+  { student_id: 'S005', full_name: 'Karim Bouzidi', specialty: 'Intelligence Artificielle', year: '3', semester: '5', group_id: 'G1', matricule: '221831005' },
+];
 
-const save = (key, data) => {
-  localStorage.setItem(key, JSON.stringify(data));
-};
-
-let _absences = load('abs_data_absences', [
-  {
-    absence_id: 'ABS001', student_id: 'S001', module_code: 'ALGO1',
-    absence_date: '2026-04-15', is_absent: true,
-    justification_deadline: '2026-04-22', created_at: '2026-04-15T09:00:00Z',
-    recorded_by: 'ADM001',
-  },
-]);
-
-let _justifications = load('abs_data_justifications', [
-  {
-    justification_id: 'JUS001', absence_id: 'ABS001',
-    student_id: 'S001', file_name: 'certificat_medical.pdf',
-    file_type: 'PDF', submitted_at: '2026-04-16T10:30:00Z',
-    status: 'pending', comment: '',
-    reason_type: 'Circonstance Familiale',
-  },
-]);
-
-let _notifications = load('abs_data_notifications', [
-  { id: 'N001', user_id: 'STU001', message: 'Votre justification pour ALGO1 est en attente de traitement.', read: false, created_at: '2026-04-16T11:00:00Z', type: 'info' },
-]);
-
-let _bugReports = load('abs_data_bugreports', []);
-let _idCounter = load('abs_data_counter', 2000);
-
-// ─── STORE API ─────────────────────────────────────────────────────────────────
+// ─── STORE API (Connected to Backend) ──────────────────────────────────────────
 export const Store = {
-  getAbsences: () => [..._absences],
-  getAbsencesByStudent: (student_id) => _absences.filter(a => a.student_id === student_id),
-  getJustifications: () => [..._justifications],
-  getJustificationByAbsence: (absence_id) => _justifications.find(j => j.absence_id === absence_id),
-  getNotifications: (user_id) => _notifications.filter(n => n.user_id === user_id),
-  getUnreadCount: (user_id) => _notifications.filter(n => n.user_id === user_id && !n.read).length,
-  getBugReports: () => [..._bugReports],
-  getBugReportsByUser: (user_id) => _bugReports.filter(b => b.user_id === user_id),
-
-  toggleAbsence: (student_id, module_code, date, admin_user_id, deadline) => {
-    const existing = _absences.find(a => a.student_id === student_id && a.module_code === module_code && a.absence_date === date);
-    if (existing) {
-      existing.is_absent = !existing.is_absent;
-      if (!existing.is_absent) {
-        _justifications = _justifications.filter(j => j.absence_id !== existing.absence_id);
-        save('abs_data_justifications', _justifications);
-      }
-      save('abs_data_absences', _absences);
-      return existing;
-    } else {
-      const newAbsence = {
-        absence_id: `ABS${++_idCounter}`,
-        student_id, module_code,
-        absence_date: date,
-        is_absent: true,
-        justification_deadline: deadline,
-        created_at: new Date().toISOString(),
-        recorded_by: admin_user_id,
-      };
-      _absences.push(newAbsence);
-      save('abs_data_absences', _absences);
-      
-      const student = STUDENTS.find(s => s.student_id === student_id);
-      if (student) {
-        _notifications.push({
-          id: `N${++_idCounter}`,
-          user_id: student.user_id,
-          message: `Absence enregistrée pour ${module_code} le ${date}.`,
-          read: false,
-          created_at: new Date().toISOString(),
-          type: 'warning',
-        });
-        save('abs_data_notifications', _notifications);
-      }
-      save('abs_data_counter', _idCounter);
-      return newAbsence;
-    }
+  getAbsences: async () => {
+    const res = await api.get('/absences');
+    return res.data;
   },
 
-  submitJustification: (absence_id, student_id, file_name, file_type, reason_type) => {
-    const existing = _justifications.find(j => j.absence_id === absence_id);
-    if (existing) {
-      existing.file_name = file_name;
-      existing.file_type = file_type;
-      existing.submitted_at = new Date().toISOString();
-      existing.status = 'pending';
-      existing.reason_type = reason_type;
-      save('abs_data_justifications', _justifications);
-      return existing;
-    }
-    const jus = {
-      justification_id: `JUS${++_idCounter}`,
-      absence_id, student_id, file_name, file_type,
-      submitted_at: new Date().toISOString(),
-      status: 'pending',
-      comment: '',
-      reason_type,
-    };
-    _justifications.push(jus);
-    save('abs_data_justifications', _justifications);
-    save('abs_data_counter', _idCounter);
-    return jus;
+  getStudents: async () => {
+    const res = await api.get('/users/students');
+    return res.data;
   },
 
-  processJustification: (justification_id, action, comment, admin_user_id) => {
-    const jus = _justifications.find(j => j.justification_id === justification_id);
-    if (!jus) return null;
-    jus.status = action;
-    jus.comment = comment;
-    jus.processed_by = admin_user_id;
-    jus.processed_at = new Date().toISOString();
-    save('abs_data_justifications', _justifications);
-
-    const absence = _absences.find(a => a.absence_id === jus.absence_id);
-    if (absence) {
-      const student = STUDENTS.find(s => s.student_id === absence.student_id);
-      if (student) {
-        const msg = action === 'approved'
-          ? `✅ Votre justification pour ${absence.module_code} a été acceptée.`
-          : `❌ Votre justification pour ${absence.module_code} a été refusée. ${comment ? 'Motif: ' + comment : ''}`;
-        _notifications.push({
-          id: `N${++_idCounter}`,
-          user_id: student.user_id,
-          message: msg,
-          read: false,
-          created_at: new Date().toISOString(),
-          type: action === 'approved' ? 'success' : 'error',
-        });
-        save('abs_data_notifications', _notifications);
-        save('abs_data_counter', _idCounter);
-      }
-    }
-    return jus;
-  },
-
-  markNotificationsRead: (user_id) => {
-    _notifications.filter(n => n.user_id === user_id).forEach(n => n.read = true);
-    save('abs_data_notifications', _notifications);
-  },
-
-  submitBugReport: (user_id, message, type) => {
-    _bugReports.push({
-      id: `BUG${++_idCounter}`,
-      user_id, message, type,
-      submitted_at: new Date().toISOString(),
-      status: 'open',
+  importStudents: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await api.post('/users/students/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
     });
-    save('abs_data_bugreports', _bugReports);
-    save('abs_data_counter', _idCounter);
+    return res.data;
   },
 
-  importStudents: (newStudents) => {
-    newStudents.forEach(s => {
-      if (!STUDENTS.find(ex => ex.matricule === s.matricule)) {
-        STUDENTS.push({ ...s, student_id: `S${++_idCounter}` });
-      }
+  getJustifications: async () => {
+    const res = await api.get('/justifications');
+    return res.data;
+  },
+
+  getBugReports: async () => {
+    const res = await api.get('/bugReports');
+    return res.data;
+  },
+
+  toggleAbsence: async (student_id, module_code, date, is_absent) => {
+    const res = await api.post('/absences/toggle', {
+      absence_id: `ABS-${student_id}-${module_code}-${date}`,
+      student_id,
+      module_code,
+      absence_date: date,
+      is_absent
     });
-    save('abs_data_counter', _idCounter);
+    return res.data;
   },
 
-  deleteAbsence: (absence_id) => {
-    _absences = _absences.filter(a => a.absence_id !== absence_id);
-    _justifications = _justifications.filter(j => j.absence_id !== absence_id);
-    save('abs_data_absences', _absences);
-    save('abs_data_justifications', _justifications);
+  submitJustification: async (absence_id, reason_type, file) => {
+    const formData = new FormData();
+    formData.append('justification_id', `JUS-${absence_id}`);
+    formData.append('absence_id', absence_id);
+    formData.append('reason_type', reason_type);
+    formData.append('file', file);
+
+    const res = await api.post('/justifications', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return res.data;
   },
+
+  processJustification: async (justification_id, status, comment) => {
+    const res = await api.put(`/justifications/${justification_id}`, {
+      status,
+      comment
+    });
+    return res.data;
+  },
+
+  // These will be implemented as needed
+  getNotifications: async () => [],
+  submitBugReport: async (message, type) => {
+    const res = await api.post('/bugReports', { message, type });
+    return res.data;
+  }
 };

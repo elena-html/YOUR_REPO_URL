@@ -137,7 +137,7 @@ body {
 }
 
 /* Specific Buttons Requested */
-.btn-notif { background: #f0fdfa; color: var(--primary); border-radius: 50%; width: 44px; height: 44px; position: relative; }
+.btn-notif { background: #f0fdfa; color: var(--primary); border-radius: 50%; width: 44px; height: 44px; position: relative; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .btn-notif:hover { background: #ccfbf1; }
 .btn-notif .badge-count { position: absolute; top: 0; right: 0; background: var(--error); color: white; font-size: 10px; padding: 2px 5px; border-radius: 10px; border: 2px solid white; }
 
@@ -233,6 +233,20 @@ body {
 .form-group label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 8px; color: var(--bg-dark); }
 .input-wrapper { position: relative; display: flex; align-items: center; }
 .input-icon { position: absolute; left: 14px; color: var(--text-muted); }
+.input-wrapper .form-control { padding-left: 42px; }
+
+.info-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  font-weight: 500;
+  color: var(--text-main);
+}
+.info-chip svg { color: var(--primary); }
 
 .btn-login {
   width: 100%;
@@ -424,6 +438,10 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 20px;
+  align-items: flex-end;
+}
+.control-grid .form-group, .filter-grid .form-group {
+  margin-bottom: 0;
 }
 
 .student-toggle-list {
@@ -448,6 +466,10 @@ body {
   transition: var(--transition);
 }
 .toggle-row:hover { background: #fdfdfd; }
+.toggle-row.row-absent {
+  background: #fff1f2;
+  border-left: 4px solid var(--error);
+}
 .toggle-btn {
   background: none;
   border: none;

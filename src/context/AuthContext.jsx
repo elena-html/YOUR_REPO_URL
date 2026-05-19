@@ -1,42 +1,36 @@
 import { createContext, useContext, useState, useCallback } from 'react';
-import { USERS, STUDENTS } from '../store/mockData';
+import api from '../store/api';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('abs_user');
-    return saved ? JSON.parse(saved) : null;
-  });
-  const [currentStudent, setCurrentStudent] = useState(() => {
-    const saved = localStorage.getItem('abs_student');
+    const saved = localStorage.getItem('abs_system_user');
     return saved ? JSON.parse(saved) : null;
   });
 
-  const login = useCallback((email, password) => {
-    const user = USERS.find(u => u.email === email && u.password === password);
-    if (!user) return { success: false, error: 'Email ou mot de passe incorrect.' };
-    
-    setCurrentUser(user);
-    localStorage.setItem('abs_user', JSON.stringify(user));
-    
-    if (user.role === 'Student') {
-      const student = STUDENTS.find(s => s.user_id === user.user_id);
-      setCurrentStudent(student || null);
-      if (student) localStorage.setItem('abs_student', JSON.stringify(student));
+  const login = useCallback(async (email, password) => {
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      const user = response.data;
+      setCurrentUser(user);
+      localStorage.setItem('abs_system_user', JSON.stringify(user));
+      return { success: true, user };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Erreur de connexion au serveur.'
+      };
     }
-    return { success: true, user };
   }, []);
 
   const logout = useCallback(() => {
     setCurrentUser(null);
-    setCurrentStudent(null);
-    localStorage.removeItem('abs_user');
-    localStorage.removeItem('abs_student');
+    localStorage.removeItem('abs_system_user');
   }, []);
 
   return (
-    <AuthContext.Provider value={{ currentUser, currentStudent, login, logout }}>
+    <AuthContext.Provider value={{ currentUser, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

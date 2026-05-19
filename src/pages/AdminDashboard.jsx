@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
-  Store, STUDENTS, MODULES, SPECIALTIES, YEARS, SEMESTERS, GROUPS, USERS
+  Store, STUDENTS, MODULES, SPECIALTIES, YEARS, SEMESTERS, GROUPS
 } from '../store/mockData';
 import {
   Users, ToggleLeft, ToggleRight, FileText, CheckCircle, XCircle,
@@ -24,8 +24,38 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('absences');
   const [showFeedback, setShowFeedback] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [students, setStudents] = useState([]);
   const [showNotif, setShowNotif] = useState(false);
   const [toast, setToast] = useState(null);
+  const [visitedTabs, setVisitedTabs] = useState([]);
+  
+  const [pendingJusCount, setPendingJusCount] = useState(0);
+  const [reportsCount, setReportsCount] = useState(0);
+
+  useEffect(() => {
+    const fetchStudents = async () => {
+      try {
+        const data = await Store.getStudents();
+        setStudents(data);
+      } catch (err) {
+        console.error('Error fetching students:', err);
+      }
+    };
+    
+    const fetchCounts = async () => {
+      try {
+        const jus = await Store.getJustifications();
+        setPendingJusCount(jus.filter(j => j.status === 'pending').length);
+        const reps = await Store.getBugReports();
+        setReportsCount(reps.filter(r => r.status !== 'resolved' && r.status !== 'closed').length);
+      } catch (err) {
+        console.error('Error fetching counts:', err);
+      }
+    };
+
+    fetchStudents();
+    fetchCounts();
+  }, [activeTab]);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -43,8 +73,8 @@ export default function AdminDashboard() {
 
       <header className="dash-header">
         <div className="dash-header-left">
-          <div className="login-logo" style={{ width: '50px', height: '50px', margin: 0, borderRadius: '12px' }}>
-            <GraduationCap size={28} color="white" />
+          <div className="login-logo" style={{ width: '65px', height: '65px', margin: 0, borderRadius: '12px', background: 'transparent' }}>
+            <img src="/logo-univ.png" alt="Logo Univ" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
           <div>
             <h2 style={{ fontSize: '1.4rem' }}>Espace Administratif</h2>
@@ -70,22 +100,37 @@ export default function AdminDashboard() {
 
       <div style={{ background: '#f8fafc', padding: '0 40px' }}>
         <nav className="admin-tabs" style={{ padding: '10px 0 0', maxWidth: '1400px', margin: '0 auto' }}>
-          {TABS.map(tab => (
-            <button
-              key={tab.id}
-              className={`admin-tab ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.icon} {tab.label}
-            </button>
-          ))}
+          {TABS.map(tab => {
+            let count = 0;
+            if (tab.id === 'justifications') count = pendingJusCount;
+            if (tab.id === 'reports') count = reportsCount;
+            
+            return (
+              <button
+                key={tab.id}
+                className={`admin-tab ${activeTab === tab.id ? 'active' : ''}`}
+                style={{ position: 'relative' }}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  if (!visitedTabs.includes(tab.id)) {
+                    setVisitedTabs([...visitedTabs, tab.id]);
+                  }
+                }}
+              >
+                {tab.icon} {tab.label}
+                {count > 0 && !visitedTabs.includes(tab.id) && activeTab !== tab.id && (
+                  <span className="badge-count" style={{ position: 'absolute', top: '5px', right: '5px', background: 'var(--error)', color: 'white', fontSize: '10px', padding: '2px 6px', borderRadius: '10px' }}>{count}</span>
+                )}
+              </button>
+            );
+          })}
         </nav>
       </div>
 
       <main className="dash-main">
-        {activeTab === 'absences' && <AbsenceManagementTab showToast={showToast} adminId={currentUser?.user_id} />}
-        {activeTab === 'justifications' && <JustificationsTab showToast={showToast} adminId={currentUser?.user_id} />}
-        {activeTab === 'students' && <StudentsTab showToast={showToast} />}
+        {activeTab === 'absences' && <AbsenceManagementTab showToast={showToast} adminId={currentUser?.user_id} students={students} />}
+        {activeTab === 'justifications' && <JustificationsTab showToast={showToast} adminId={currentUser?.user_id} students={students} />}
+        {activeTab === 'students' && <StudentsTab showToast={showToast} students={students} />}
         {activeTab === 'reports' && <ReportsTab />}
       </main>
 
@@ -101,13 +146,25 @@ export default function AdminDashboard() {
 }
 
 // ─── Tab 1: Absence Management ──────────────────────────────────────────────────
-function AbsenceManagementTab({ showToast, adminId }) {
+function AbsenceManagementTab({ showToast, adminId, students }) {
   const [filters, setFilters] = useState({ year: '1', semester: '1', specialty: 'Informatique', group: '' });
   const [selectedModule, setSelectedModule] = useState('');
   const [examDate, setExamDate] = useState(new Date().toISOString().split('T')[0]);
   const [deadline, setDeadline] = useState('');
-  const [absences, setAbsences] = useState(Store.getAbsences());
+  const [absences, setAbsences] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    const fetchAbsences = async () => {
+      try {
+        const data = await Store.getAbsences();
+        setAbsences(data);
+      } catch (err) {
+        showToast('Erreur lors du chargement des absences.', 'error');
+      }
+    };
+    fetchAbsences();
+  }, []);
 
   useEffect(() => {
     const d = new Date();
@@ -131,7 +188,7 @@ function AbsenceManagementTab({ showToast, adminId }) {
     }
   }, [availableModules]);
 
-  const filteredStudents = STUDENTS.filter(s => {
+  const filteredStudents = students.filter(s => {
     if (filters.year && s.year !== filters.year) return false;
     if (filters.semester && s.semester !== filters.semester) return false;
     // For year 1 and 2, specialty is Informatique. For year 3, it can be AI or Security
@@ -148,15 +205,17 @@ function AbsenceManagementTab({ showToast, adminId }) {
     return true;
   });
 
-  const getAbsenceRecord = (student_id) => {
-    return absences.find(a =>
-      a.student_id === student_id &&
-      a.module_code === selectedModule &&
-      a.absence_date === examDate
-    );
+  const getAbsenceRecord = (studentId) => {
+    return absences.find(a => {
+      if (!a.student_id) return false;
+      const aStudentId = typeof a.student_id === 'object' ? a.student_id._id : a.student_id;
+      return aStudentId === studentId &&
+             a.module_code === selectedModule &&
+             new Date(a.absence_date).toISOString().split('T')[0] === examDate;
+    });
   };
 
-  const handleToggle = (student) => {
+  const handleToggle = async (student) => {
     if (!selectedModule) {
       showToast('Veuillez sélectionner un module.', 'error');
       return;
@@ -165,16 +224,24 @@ function AbsenceManagementTab({ showToast, adminId }) {
       showToast('Veuillez définir une date limite.', 'error');
       return;
     }
-    Store.toggleAbsence(student.student_id, selectedModule, examDate, adminId, deadline);
-    setAbsences(Store.getAbsences());
-    const rec = getAbsenceRecord(student.student_id);
+    
+    const rec = getAbsenceRecord(student._id);
     const willBeAbsent = !rec || !rec.is_absent;
-    showToast(
-      willBeAbsent
-        ? `${student.full_name} marqué(e) absent(e).`
-        : `${student.full_name} marqué(e) présent(e).`,
-      willBeAbsent ? 'error' : 'success'
-    );
+
+    try {
+      await Store.toggleAbsence(student._id, selectedModule, examDate, willBeAbsent);
+      const data = await Store.getAbsences();
+      setAbsences(data);
+      
+      showToast(
+        willBeAbsent
+          ? `${student.full_name} marqué(e) absent(e).`
+          : `${student.full_name} marqué(e) présent(e).`,
+        willBeAbsent ? 'error' : 'success'
+      );
+    } catch (err) {
+      showToast('Erreur lors de la mise à jour.', 'error');
+    }
   };
 
   const absentCount = filteredStudents.filter(s => {
@@ -317,10 +384,10 @@ function AbsenceManagementTab({ showToast, adminId }) {
               <span>Action</span>
             </div>
             {filteredStudents.map(student => {
-              const rec = getAbsenceRecord(student.student_id);
+              const rec = getAbsenceRecord(student._id);
               const isAbsent = rec && rec.is_absent;
               return (
-                <div key={student.student_id} className={`toggle-row ${isAbsent ? 'row-absent' : ''}`}>
+                <div key={student._id} className={`toggle-row ${isAbsent ? 'row-absent' : ''}`}>
                   <div className="student-name-cell" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span className="user-avatar" style={{ width: '30px', height: '30px', fontSize: '0.8rem' }}>{student.full_name.charAt(0)}</span>
                     {student.full_name}
@@ -352,19 +419,31 @@ function AbsenceManagementTab({ showToast, adminId }) {
 }
 
 // ─── Tab 2: Justifications Review ──────────────────────────────────────────────
-function JustificationsTab({ showToast, adminId }) {
-  const [justifications, setJustifications] = useState(Store.getJustifications());
+function JustificationsTab({ showToast, adminId, students }) {
+  const [justifications, setJustifications] = useState([]);
   const [filterStatus, setFilterStatus] = useState('pending');
   const [academicFilters, setAcademicFilters] = useState({ year: '', semester: '', specialty: '', group: '' });
 
-  const refresh = () => setJustifications(Store.getJustifications());
+  const refresh = async () => {
+    try {
+      const data = await Store.getJustifications();
+      setJustifications(data);
+    } catch (err) {
+      showToast('Erreur lors du rafraîchissement.', 'error');
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
 
   const enriched = useMemo(() => {
     return justifications.map(jus => {
-      const absence = Store.getAbsences().find(a => a.absence_id === jus.absence_id);
-      const student = absence ? STUDENTS.find(s => s.student_id === absence.student_id) : null;
-      const mod = absence ? MODULES.find(m => m.module_code === absence.module_code) : null;
-      return { ...jus, absence, student, mod };
+      // Find student directly from the students list using student_id
+      const student = students.find(s => s._id === jus.student_id || s.user_id === jus.student_id);
+      // Find module from justification's stored module_code if available
+      const mod = jus.module_code ? MODULES.find(m => m.module_code === jus.module_code) : null;
+      return { ...jus, student, mod };
     }).filter(j => {
       if (filterStatus !== 'all' && j.status !== filterStatus) return false;
       if (academicFilters.year && j.student?.year !== academicFilters.year) return false;
@@ -373,21 +452,29 @@ function JustificationsTab({ showToast, adminId }) {
       if (academicFilters.group && j.student?.group_id !== academicFilters.group) return false;
       return true;
     });
-  }, [justifications, filterStatus, academicFilters]);
+  }, [justifications, filterStatus, academicFilters, students]);
 
-  const handleApprove = (jus) => {
-    Store.processJustification(jus.justification_id, 'approved', '', adminId);
-    refresh();
-    showToast(`Justification acceptée.`);
+  const handleApprove = async (jus) => {
+    try {
+      await Store.processJustification(jus.justification_id, 'approved', '');
+      await refresh();
+      showToast(`Justification acceptée.`);
+    } catch (err) {
+      showToast('Erreur lors de la validation.', 'error');
+    }
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!rejectModal) return;
-    Store.processJustification(rejectModal.justification_id, 'rejected', rejectComment, adminId);
-    refresh();
-    showToast(`Justification refusée.`, 'error');
-    setRejectModal(null);
-    setRejectComment('');
+    try {
+      await Store.processJustification(rejectModal.justification_id, 'rejected', rejectComment);
+      await refresh();
+      showToast(`Justification refusée.`, 'error');
+      setRejectModal(null);
+      setRejectComment('');
+    } catch (err) {
+      showToast('Erreur lors du refus.', 'error');
+    }
   };
 
   const [rejectModal, setRejectModal] = useState(null);
@@ -473,7 +560,7 @@ function JustificationsTab({ showToast, adminId }) {
                     <td>{jus.mod?.module_name}</td>
                     <td><span className="badge" style={{ background: '#f1f5f9' }}>{jus.reason_type}</span></td>
                     <td>
-                      <button className="btn-secondary" style={{ padding: '6px 10px', fontSize: '0.8rem' }} onClick={() => window.alert("Ouverture du fichier PDF: " + jus.file_name)}>
+                      <button className="btn-secondary" style={{ padding: '6px 10px', fontSize: '0.8rem' }} onClick={() => window.open(`http://localhost:5000/uploads/${jus.file_name}`, '_blank')}>
                         <Eye size={14} /> {jus.file_name}
                       </button>
                     </td>
@@ -536,12 +623,35 @@ function JustificationsTab({ showToast, adminId }) {
 }
 
 // ─── Tab 3: Students Management ─────────────────────────────────────────────────
-function StudentsTab({ showToast }) {
+function StudentsTab({ showToast, students }) {
   const [search, setSearch] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
+  const [absences, setAbsences] = useState([]);
+  const [importing, setImporting] = useState(false);
   const fileRef = useRef();
 
-  const filtered = STUDENTS.filter(s => {
+  const handleImport = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const res = await Store.importStudents(file);
+      showToast(res.message || 'Importation réussie !');
+      setShowImportModal(false);
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (error) {
+      showToast(error.response?.data?.message || 'Erreur lors de l\'importation', 'error');
+    } finally {
+      setImporting(false);
+      e.target.value = '';
+    }
+  };
+
+  useEffect(() => {
+    Store.getAbsences().then(setAbsences).catch(() => {});
+  }, []);
+
+  const filtered = students.filter(s => {
     if (!search) return true;
     const q = search.toLowerCase();
     return s.full_name.toLowerCase().includes(q) || s.matricule.includes(q);
@@ -580,9 +690,9 @@ function StudentsTab({ showToast }) {
           </thead>
           <tbody>
             {filtered.map(s => {
-              const absCount = Store.getAbsencesByStudent(s.student_id).filter(a => a.is_absent).length;
+              const absCount = absences.filter(a => (a.student_id === s._id || a.student_id === s.user_id) && a.is_absent).length;
               return (
-                <tr key={s.student_id}>
+                <tr key={s._id || s.user_id}>
                   <td>
                     <div style={{ fontWeight: '600' }}>{s.full_name}</div>
                   </td>
@@ -615,7 +725,8 @@ function StudentsTab({ showToast }) {
                 <Upload size={24} />
                 <span>Charger le fichier .xlsx</span>
               </div>
-              <input ref={fileRef} type="file" style={{ display: 'none' }} onChange={() => { showToast('Importation réussie !'); setShowImportModal(false); }} />
+              <input ref={fileRef} type="file" accept=".xlsx, .xls" style={{ display: 'none' }} onChange={handleImport} />
+              {importing && <p style={{ marginTop: '15px', color: 'var(--primary)' }}>Importation en cours...</p>}
             </div>
           </div>
         </div>
@@ -626,7 +737,11 @@ function StudentsTab({ showToast }) {
 
 // ─── Tab 4: Bug Reports ──────────────────────────────────────────────────────────
 function ReportsTab() {
-  const reports = Store.getBugReports();
+  const [reports, setReports] = useState([]);
+
+  useEffect(() => {
+    Store.getBugReports().then(setReports).catch(() => {});
+  }, []);
 
   return (
     <div className="card">
@@ -642,16 +757,16 @@ function ReportsTab() {
       ) : (
         <div className="reports-list" style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '20px' }}>
           {reports.map(r => (
-            <div key={r.id} className="feedback-card">
+            <div key={r._id} className="feedback-card">
               <div className="feedback-header">
                 <span className="badge" style={{ background: r.type === 'bug' ? '#fee2e2' : '#f0fdfa', color: r.type === 'bug' ? '#991b1b' : '#166534' }}>
                   {r.type === 'bug' ? '🐛 Bug' : '💬 Suggestion'}
                 </span>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{new Date(r.submitted_at).toLocaleString('fr-DZ')}</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{new Date(r.createdAt).toLocaleString('fr-DZ')}</span>
               </div>
               <div className="feedback-body" style={{ margin: '10px 0' }}>{r.message}</div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Envoyé par: <strong>{USERS.find(u => u.user_id === r.user_id)?.full_name || r.user_id}</strong>
+                Envoyé par: <strong>{r.user_id?.full_name || 'Étudiant'}</strong>
               </div>
             </div>
           ))}
