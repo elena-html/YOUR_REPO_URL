@@ -303,7 +303,7 @@ export default function StudentDashboard() {
                                 <span className="upload-preview-name">{jus.file_name}</span>
                                 <span className="upload-preview-size">{jus.reason_type} • Soumis le {new Date(jus.submitted_at).toLocaleDateString('fr-DZ')}</span>
                               </div>
-                              <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem' }} onClick={(e) => { e.stopPropagation(); window.open(`http://localhost:5000/uploads/${jus.file_name}`, '_blank'); }}>
+                              <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem' }} onClick={(e) => { e.stopPropagation(); window.open(`https://your-repo-url.onrender.com/uploads/${jus.file_name}`, '_blank'); }}>
                                 <ExternalLink size={14} /> Voir le fichier
                               </button>
                             </div>

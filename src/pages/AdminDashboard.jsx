@@ -560,7 +560,7 @@ function JustificationsTab({ showToast, adminId, students }) {
                     <td>{jus.mod?.module_name}</td>
                     <td><span className="badge" style={{ background: '#f1f5f9' }}>{jus.reason_type}</span></td>
                     <td>
-                      <button className="btn-secondary" style={{ padding: '6px 10px', fontSize: '0.8rem' }} onClick={() => window.open(`http://localhost:5000/uploads/${jus.file_name}`, '_blank')}>
+                      <button className="btn-secondary" style={{ padding: '6px 10px', fontSize: '0.8rem' }} onClick={() => window.open(`https://your-repo-url.onrender.com/uploads/${jus.file_name}`, '_blank')}>
                         <Eye size={14} /> {jus.file_name}
                       </button>
                     </td>
